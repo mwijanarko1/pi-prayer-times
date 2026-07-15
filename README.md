@@ -1,8 +1,10 @@
 # pi-masjidly-prayer-times
 
+![Current prayer highlighted in the Pi footer](assets/prayer-times-highlight.png)
+
 Pi extension that shows today's mosque prayer times beneath the editor.
 
-Prayer data comes from the public [Sheffield Masjids](https://www.sheffieldmasjids.com) timetable feed, which includes mosques across multiple countries and cities.
+Prayer data comes from Masjidly and includes mosques across multiple countries and cities.
 
 ## Install
 
@@ -55,7 +57,7 @@ Adhan and Iqamah:
 Fajr 03:46/04:00 · Dhuhr 13:12/13:30 · Asr 17:34/18:15 · Maghrib 21:30/21:30 · Isha 22:36/22:36
 ```
 
-Times refresh when Pi starts and after midnight in the selected mosque's timezone.
+The upcoming prayer is highlighted using the mosque's Iqamah schedule. Times refresh when Pi starts, on each turn, and after midnight in the selected mosque's timezone.
 
 ## Development
 
@@ -67,7 +69,7 @@ pi -e /absolute/path/to/pi-prayer-times
 
 ## Data attribution
 
-Prayer timetable data: [Sheffield Masjids](https://www.sheffieldmasjids.com).
+Prayer timetable data: Masjidly.
 
 ## License
 

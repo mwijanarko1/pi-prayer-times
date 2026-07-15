@@ -1,6 +1,6 @@
 {
   "name": "pi-masjidly-prayer-times",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "description": "Pi extension showing configurable mosque Adhan and Iqamah times in the footer.",
   "license": "MIT",
@@ -26,6 +26,7 @@
     "mosque"
   ],
   "files": [
+    "assets",
     "extensions",
     "README.md",
     "LICENSE"
