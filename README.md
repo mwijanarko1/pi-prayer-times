@@ -1,4 +1,4 @@
-# @mwijanarko1/pi-prayer-times
+# pi-masjidly-prayer-times
 
 Pi extension that shows today's mosque prayer times beneath the editor.
 
@@ -7,7 +7,7 @@ Prayer data comes from the public [Sheffield Masjids](https://www.sheffieldmasji
 ## Install
 
 ```bash
-pi install npm:@mwijanarko1/pi-prayer-times
+pi install npm:pi-masjidly-prayer-times
 ```
 
 Or from GitHub:
