@@ -143,10 +143,10 @@ export function formatPrayerStatus(row: PrayerRow, range?: IqamahRange, displayM
     return `Prayer: ${PRAYERS.map((prayer) => `${title(prayer)} ${row[prayer]}`).join(" · ")}`;
   }
 
-  return `Prayer (Adhan/Iqamah): ${PRAYERS.map((prayer) => {
+  return PRAYERS.map((prayer) => {
     const iqamah = resolveIqamah(range?.[prayer], row[prayer], prayer);
     return `${title(prayer)} ${row[prayer]}/${iqamah}`;
-  }).join(" · ")}`;
+  }).join(" · ");
 }
 
 function title(value: string): string {

@@ -52,7 +52,7 @@ Prayer: Fajr 03:46 · Dhuhr 13:12 · Asr 17:34 · Maghrib 21:30 · Isha 22:36
 Adhan and Iqamah:
 
 ```text
-Prayer (Adhan/Iqamah): Fajr 03:46/04:00 · Dhuhr 13:12/13:30 · Asr 17:34/18:15 · Maghrib 21:30/21:30 · Isha 22:36/22:36
+Fajr 03:46/04:00 · Dhuhr 13:12/13:30 · Asr 17:34/18:15 · Maghrib 21:30/21:30 · Isha 22:36/22:36
 ```
 
 Times refresh when Pi starts and after midnight in the selected mosque's timezone.

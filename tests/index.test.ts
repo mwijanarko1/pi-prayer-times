@@ -40,7 +40,7 @@ test("formats Adhan-only and Adhan/Iqamah statuses", () => {
     "Prayer: Fajr 03:46 · Dhuhr 13:12 · Asr 17:34 · Maghrib 21:30 · Isha 22:36",
   );
   expect(formatPrayerStatus(row, range, "adhan-iqamah")).toBe(
-    "Prayer (Adhan/Iqamah): Fajr 03:46/04:00 · Dhuhr 13:12/13:30 · Asr 17:34/18:15 · Maghrib 21:30/21:30 · Isha 22:36/22:36",
+    "Fajr 03:46/04:00 · Dhuhr 13:12/13:30 · Asr 17:34/18:15 · Maghrib 21:30/21:30 · Isha 22:36/22:36",
   );
 });
 
