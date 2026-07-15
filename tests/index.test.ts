@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import {
   fetchPrayerStatus,
   formatPrayerStatus,
+  getHighlightedPrayer,
   iqamahForDay,
   normalizeMosque,
   resolveIqamah,
@@ -42,6 +43,30 @@ test("formats Adhan-only and Adhan/Iqamah statuses", () => {
   expect(formatPrayerStatus(row, range, "adhan-iqamah")).toBe(
     "Fajr 03:46/04:00 · Dhuhr 13:12/13:30 · Asr 17:34/18:15 · Maghrib 21:30/21:30 · Isha 22:36/22:36",
   );
+});
+
+test("matches MWHS iqamah-window prayer highlighting", () => {
+  const prayerTimes = {
+    date: 11,
+    fajr: "05:00",
+    dhuhr: "12:15",
+    asr: "15:30",
+    maghrib: "18:00",
+    isha: "19:30",
+  };
+  const iqamahTimes = {
+    date_range: "1-31",
+    fajr: "05:20",
+    dhuhr: "12:45",
+    asr: "15:45",
+    maghrib: "18:00",
+    isha: "20:00",
+  };
+
+  expect(getHighlightedPrayer(prayerTimes, iqamahTimes, new Date("2026-03-11T04:00:00Z"), "Europe/London")).toBe("fajr");
+  expect(getHighlightedPrayer(prayerTimes, iqamahTimes, new Date("2026-03-11T05:25:00Z"), "Europe/London")).toBeNull();
+  expect(getHighlightedPrayer(prayerTimes, iqamahTimes, new Date("2026-03-11T05:30:00Z"), "Europe/London")).toBe("dhuhr");
+  expect(getHighlightedPrayer(prayerTimes, iqamahTimes, new Date("2026-03-11T20:10:00Z"), "Europe/London")).toBe("fajr");
 });
 
 test("loads the selected mosque's local monthly timetable", async () => {

@@ -121,6 +121,25 @@ function addMinutes(time: string, amount: number): string | null {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
+function timeMinutes(time: string): number | null {
+  const match = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return hours < 24 && minutes < 60 ? hours * 60 + minutes : null;
+}
+
+function localTimeMinutes(now: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value);
+  return part("hour") * 60 + part("minute");
+}
+
 export function resolveIqamah(value: string | undefined, adhan: string, prayer: string): string {
   const text = value?.trim() || (prayer === "maghrib" ? "sunset" : "—");
   if (/^(sunset|entry time|various)$/i.test(text)) return adhan;
@@ -138,15 +157,36 @@ export function iqamahForDay(ranges: IqamahRange[] = [], day: number): IqamahRan
   });
 }
 
-export function formatPrayerStatus(row: PrayerRow, range?: IqamahRange, displayMode: DisplayMode = "adhan"): string {
-  if (displayMode === "adhan") {
-    return `Prayer: ${PRAYERS.map((prayer) => `${title(prayer)} ${row[prayer]}`).join(" · ")}`;
+export function getHighlightedPrayer(
+  row: PrayerRow,
+  range: IqamahRange | undefined,
+  now: Date,
+  timeZone: string,
+): typeof PRAYERS[number] | null {
+  const iqamahs = PRAYERS.map((prayer) => timeMinutes(resolveIqamah(range?.[prayer], row[prayer], prayer)));
+  const current = localTimeMinutes(now, timeZone);
+
+  for (let index = 0; index < PRAYERS.length; index++) {
+    const end = iqamahs[index];
+    const previous = iqamahs[index === 0 ? PRAYERS.length - 1 : index - 1];
+    if (end === null || previous === null) continue;
+    const start = previous + 10 - (index === 0 ? 1440 : 0);
+    if (current >= start && current < end) return PRAYERS[index];
   }
 
+  const isha = iqamahs.at(-1);
+  return isha !== null && isha !== undefined && current >= isha + 10 ? "fajr" : null;
+}
+
+function prayerParts(row: PrayerRow, range?: IqamahRange, displayMode: DisplayMode = "adhan"): string[] {
   return PRAYERS.map((prayer) => {
-    const iqamah = resolveIqamah(range?.[prayer], row[prayer], prayer);
-    return `${title(prayer)} ${row[prayer]}/${iqamah}`;
-  }).join(" · ");
+    const adhan = `${title(prayer)} ${row[prayer]}`;
+    return displayMode === "adhan" ? adhan : `${adhan}/${resolveIqamah(range?.[prayer], row[prayer], prayer)}`;
+  });
+}
+
+export function formatPrayerStatus(row: PrayerRow, range?: IqamahRange, displayMode: DisplayMode = "adhan"): string {
+  return `${displayMode === "adhan" ? "Prayer: " : ""}${prayerParts(row, range, displayMode).join(" · ")}`;
 }
 
 function title(value: string): string {
@@ -158,7 +198,7 @@ export async function fetchPrayerStatus(
   displayMode: DisplayMode,
   now = new Date(),
   fetcher: typeof fetch = fetch,
-): Promise<{ key: string; text: string }> {
+): Promise<{ key: string; text: string; row: PrayerRow; range?: IqamahRange }> {
   const date = localDate(now, mosque.timezone);
   const url = `${SITE_URL}/data/mosques/${mosque.countryCode.toLowerCase()}/${mosque.citySlug}/${mosque.slug}/${date.month}.json`;
   const response = await fetcher(url);
@@ -167,16 +207,19 @@ export async function fetchPrayerStatus(
   const data = await response.json() as MonthlyPrayerTimes;
   const row = data.prayer_times.find((item) => item.date === date.day);
   if (!row) throw new Error(`No prayer times found for day ${date.day}`);
+  const range = iqamahForDay(data.iqamah_times, date.day);
   return {
     key: `${mosque.slug}:${displayMode}:${date.key}`,
-    text: formatPrayerStatus(row, iqamahForDay(data.iqamah_times, date.day), displayMode),
+    text: formatPrayerStatus(row, range, displayMode),
+    row,
+    range,
   };
 }
 
 export default function (pi: ExtensionAPI) {
   let settings = loadSettings();
   let mosqueCache: Mosque[] | undefined;
-  let loadedKey = "";
+  let loadedStatus: Awaited<ReturnType<typeof fetchPrayerStatus>> | undefined;
 
   async function mosques() {
     return mosqueCache ??= await fetchMosques();
@@ -193,12 +236,20 @@ export default function (pi: ExtensionAPI) {
     try {
       const mosque = await selectedMosque();
       if (!mosque) throw new Error("No mosques available");
-      const dateKey = `${mosque.slug}:${settings.displayMode}:${localDate(new Date(), mosque.timezone).key}`;
-      if (!force && loadedKey === dateKey) return;
+      const now = new Date();
+      const dateKey = `${mosque.slug}:${settings.displayMode}:${localDate(now, mosque.timezone).key}`;
+      if (force || loadedStatus?.key !== dateKey) {
+        loadedStatus = await fetchPrayerStatus(mosque, settings.displayMode, now);
+      }
 
-      const status = await fetchPrayerStatus(mosque, settings.displayMode);
-      loadedKey = status.key;
-      ctx.ui.setStatus("prayer-times", ctx.ui.theme.fg("dim", status.text));
+      const highlighted = getHighlightedPrayer(loadedStatus.row, loadedStatus.range, now, mosque.timezone);
+      const text = prayerParts(loadedStatus.row, loadedStatus.range, settings.displayMode)
+        .map((part, index) => PRAYERS[index] === highlighted
+          ? ctx.ui.theme.fg("accent", ctx.ui.theme.bold(part))
+          : ctx.ui.theme.fg("dim", part))
+        .join(ctx.ui.theme.fg("dim", " · "));
+      const prefix = settings.displayMode === "adhan" ? ctx.ui.theme.fg("dim", "Prayer: ") : "";
+      ctx.ui.setStatus("prayer-times", prefix + text);
     } catch {
       ctx.ui.setStatus("prayer-times", ctx.ui.theme.fg("dim", "Prayer times unavailable"));
     }
