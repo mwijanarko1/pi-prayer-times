@@ -1,0 +1,53 @@
+{
+  "name": "@mwijanarko1/pi-prayer-times",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pi extension showing configurable mosque Adhan and Iqamah times in the footer.",
+  "license": "MIT",
+  "author": {
+    "name": "mwijanarko1",
+    "url": "https://github.com/mwijanarko1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mwijanarko1/pi-prayer-times.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mwijanarko1/pi-prayer-times/issues"
+  },
+  "homepage": "https://github.com/mwijanarko1/pi-prayer-times#readme",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-coding-agent",
+    "prayer-times",
+    "adhan",
+    "iqamah",
+    "mosque"
+  ],
+  "files": [
+    "extensions",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": "./extensions/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/index.ts"
+    ]
+  }
+}
