@@ -13,6 +13,7 @@ type DisplayMode = "adhan" | "adhan-iqamah";
 type Settings = {
   mosqueSlug: string;
   displayMode: DisplayMode;
+  showCountdown: boolean;
 };
 
 export type Mosque = {
@@ -48,7 +49,7 @@ type MonthlyPrayerTimes = {
   iqamah_times?: IqamahRange[];
 };
 
-const DEFAULT_SETTINGS: Settings = { mosqueSlug: DEFAULT_MOSQUE, displayMode: "adhan" };
+const DEFAULT_SETTINGS: Settings = { mosqueSlug: DEFAULT_MOSQUE, displayMode: "adhan", showCountdown: true };
 const PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"] as const;
 
 function loadSettings(): Settings {
@@ -56,7 +57,11 @@ function loadSettings(): Settings {
     if (existsSync(SETTINGS_PATH)) {
       const value = JSON.parse(readFileSync(SETTINGS_PATH, "utf8")) as Partial<Settings>;
       if (value.mosqueSlug && (value.displayMode === "adhan" || value.displayMode === "adhan-iqamah")) {
-        return { mosqueSlug: value.mosqueSlug, displayMode: value.displayMode };
+        return {
+          mosqueSlug: value.mosqueSlug,
+          displayMode: value.displayMode,
+          showCountdown: value.showCountdown !== false,
+        };
       }
     }
   } catch {
@@ -99,19 +104,31 @@ export async function fetchMosques(fetcher: typeof fetch = fetch): Promise<Mosqu
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+const MONTHS = [
+  "january", "february", "march", "april", "may", "june",
+  "july", "august", "september", "october", "november", "december",
+] as const;
+
 function localDate(now: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone,
     year: "numeric",
-    month: "long",
+    month: "numeric",
     day: "numeric",
   }).formatToParts(now);
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
-  return {
-    key: `${part("year")}-${part("month")}-${part("day")}`,
-    month: part("month").toLowerCase(),
-    day: Number(part("day")),
-  };
+  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value);
+  const year = part("year");
+  const monthIndex = part("month") - 1;
+  const day = part("day");
+  return { key: `${year}-${monthIndex + 1}-${day}`, year, monthIndex, month: MONTHS[monthIndex]!, day };
+}
+
+function nextDate(date: ReturnType<typeof localDate>) {
+  const next = new Date(Date.UTC(date.year, date.monthIndex, date.day + 1));
+  const year = next.getUTCFullYear();
+  const monthIndex = next.getUTCMonth();
+  const day = next.getUTCDate();
+  return { key: `${year}-${monthIndex + 1}-${day}`, year, monthIndex, month: MONTHS[monthIndex]!, day };
 }
 
 function addMinutes(time: string, amount: number): string | null {
@@ -138,6 +155,34 @@ function localTimeMinutes(now: Date, timeZone: string): number {
   }).formatToParts(now);
   const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((item) => item.type === type)?.value);
   return part("hour") * 60 + part("minute");
+}
+
+export function formatNextEventCountdown(
+  row: PrayerRow,
+  range: IqamahRange | undefined,
+  nextRow: PrayerRow | undefined,
+  nextRange: IqamahRange | undefined,
+  now: Date,
+  timeZone: string,
+): string | null {
+  const events = (dayRow: PrayerRow, dayRange: IqamahRange | undefined, offset: number) => PRAYERS.flatMap((prayer) => {
+    const adhan = timeMinutes(dayRow[prayer]);
+    const iqamah = timeMinutes(resolveIqamah(dayRange?.[prayer], dayRow[prayer], prayer));
+    return [
+      ...(adhan === null ? [] : [{ label: `${title(prayer)} Adhan`, at: adhan + offset }]),
+      ...(iqamah === null ? [] : [{ label: `${title(prayer)} Iqamah`, at: iqamah + offset }]),
+    ];
+  });
+  const current = localTimeMinutes(now, timeZone);
+  const next = [...events(row, range, 0), ...(nextRow ? events(nextRow, nextRange, 1440) : [])]
+    .filter((event) => event.at >= current)
+    .sort((a, b) => a.at - b.at)[0];
+  if (!next) return null;
+
+  const minutes = next.at - current;
+  if (minutes === 0) return `Next: ${next.label} now`;
+  const hours = Math.floor(minutes / 60);
+  return `Next: ${next.label} in ${hours ? `${hours}h ` : ""}${minutes % 60}m`;
 }
 
 export function resolveIqamah(value: string | undefined, adhan: string, prayer: string): string {
@@ -198,13 +243,27 @@ export async function fetchPrayerStatus(
   displayMode: DisplayMode,
   now = new Date(),
   fetcher: typeof fetch = fetch,
-): Promise<{ key: string; text: string; row: PrayerRow; range?: IqamahRange }> {
+): Promise<{
+  key: string;
+  text: string;
+  row: PrayerRow;
+  range?: IqamahRange;
+  nextRow?: PrayerRow;
+  nextRange?: IqamahRange;
+}> {
   const date = localDate(now, mosque.timezone);
-  const url = `${SITE_URL}/data/mosques/${mosque.countryCode.toLowerCase()}/${mosque.citySlug}/${mosque.slug}/${date.month}.json`;
-  const response = await fetcher(url);
-  if (!response.ok) throw new Error(`Prayer times request failed: ${response.status}`);
+  const tomorrow = nextDate(date);
+  const fetchMonth = async (month: string) => {
+    const url = `${SITE_URL}/data/mosques/${mosque.countryCode.toLowerCase()}/${mosque.citySlug}/${mosque.slug}/${month}.json`;
+    const response = await fetcher(url);
+    if (!response.ok) throw new Error(`Prayer times request failed: ${response.status}`);
+    return response.json() as Promise<MonthlyPrayerTimes>;
+  };
 
-  const data = await response.json() as MonthlyPrayerTimes;
+  const data = await fetchMonth(date.month);
+  const tomorrowData = tomorrow.month === date.month
+    ? data
+    : await fetchMonth(tomorrow.month).catch(() => undefined);
   const row = data.prayer_times.find((item) => item.date === date.day);
   if (!row) throw new Error(`No prayer times found for day ${date.day}`);
   const range = iqamahForDay(data.iqamah_times, date.day);
@@ -213,6 +272,8 @@ export async function fetchPrayerStatus(
     text: formatPrayerStatus(row, range, displayMode),
     row,
     range,
+    nextRow: tomorrowData?.prayer_times.find((item) => item.date === tomorrow.day),
+    nextRange: iqamahForDay(tomorrowData?.iqamah_times, tomorrow.day),
   };
 }
 
@@ -220,6 +281,7 @@ export default function (pi: ExtensionAPI) {
   let settings = loadSettings();
   let mosqueCache: Mosque[] | undefined;
   let loadedStatus: Awaited<ReturnType<typeof fetchPrayerStatus>> | undefined;
+  let countdownTimer: ReturnType<typeof setInterval> | undefined;
 
   async function mosques() {
     return mosqueCache ??= await fetchMosques();
@@ -249,17 +311,39 @@ export default function (pi: ExtensionAPI) {
           : ctx.ui.theme.fg("dim", part))
         .join(ctx.ui.theme.fg("dim", " · "));
       const prefix = settings.displayMode === "adhan" ? ctx.ui.theme.fg("dim", "Prayer: ") : "";
-      ctx.ui.setStatus("prayer-times", prefix + text);
+      const countdown = settings.showCountdown
+        ? formatNextEventCountdown(
+          loadedStatus.row,
+          loadedStatus.range,
+          loadedStatus.nextRow,
+          loadedStatus.nextRange,
+          now,
+          mosque.timezone,
+        )
+        : null;
+      const suffix = countdown ? ctx.ui.theme.fg("accent", ` · ${countdown}`) : "";
+      ctx.ui.setStatus("prayer-times", prefix + text + suffix);
     } catch {
       ctx.ui.setStatus("prayer-times", ctx.ui.theme.fg("dim", "Prayer times unavailable"));
     }
   }
 
-  pi.on("session_start", (_event, ctx) => update(ctx));
+  function resetCountdownTimer(ctx: ExtensionContext) {
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = settings.showCountdown ? setInterval(() => void update(ctx), 60_000) : undefined;
+  }
+
+  pi.on("session_start", async (_event, ctx) => {
+    await update(ctx);
+    resetCountdownTimer(ctx);
+  });
   pi.on("turn_start", (_event, ctx) => update(ctx));
+  pi.on("session_shutdown", () => {
+    if (countdownTimer) clearInterval(countdownTimer);
+  });
 
   pi.registerCommand("prayer-settings", {
-    description: "Choose country, city, mosque, and Adhan/Iqamah display",
+    description: "Choose mosque, prayer display, and next-event countdown",
     handler: async (_args, ctx) => {
       let available: Mosque[];
       try {
@@ -290,14 +374,18 @@ export default function (pi: ExtensionAPI) {
 
       const modeLabel = await ctx.ui.select("Display:", ["Adhan only", "Adhan and Iqamah"]);
       if (!modeLabel) return;
+      const countdownLabel = await ctx.ui.select("Countdown:", ["Off", "Next Adhan or Iqamah"]);
+      if (!countdownLabel) return;
 
       settings = {
         mosqueSlug: mosque.slug,
         displayMode: modeLabel === "Adhan and Iqamah" ? "adhan-iqamah" : "adhan",
+        showCountdown: countdownLabel !== "Off",
       };
       saveSettings(settings);
       await update(ctx, true);
-      ctx.ui.notify(`Prayer times: ${mosque.name} · ${modeLabel}`, "info");
+      resetCountdownTimer(ctx);
+      ctx.ui.notify(`Prayer times: ${mosque.name} · ${modeLabel} · Countdown ${countdownLabel}`, "info");
     },
   });
 }

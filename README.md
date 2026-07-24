@@ -34,8 +34,9 @@ Choose:
 2. City
 3. Mosque
 4. `Adhan only` or `Adhan and Iqamah`
+5. Turn the next Adhan/Iqamah countdown on or off
 
-The default is Muslim Welfare House Sheffield with Adhan-only times.
+The default is Muslim Welfare House Sheffield with Adhan-only times and the countdown on.
 
 Settings are stored in:
 
@@ -51,13 +52,13 @@ Adhan only:
 Prayer: Fajr 03:46 · Dhuhr 13:12 · Asr 17:34 · Maghrib 21:30 · Isha 22:36
 ```
 
-Adhan and Iqamah:
+Adhan and Iqamah with countdown:
 
 ```text
-Fajr 03:46/04:00 · Dhuhr 13:12/13:30 · Asr 17:34/18:15 · Maghrib 21:30/21:30 · Isha 22:36/22:36
+Fajr 03:46/04:00 · Dhuhr 13:12/13:30 · Asr 17:34/18:15 · Maghrib 21:30/21:30 · Isha 22:36/22:36 · Next: Dhuhr Iqamah in 10m
 ```
 
-The upcoming prayer is highlighted using the mosque's Iqamah schedule. Times refresh when Pi starts, on each turn, and after midnight in the selected mosque's timezone.
+The upcoming prayer is highlighted using the mosque's Iqamah schedule. When enabled, the countdown refreshes every minute and automatically selects the next Adhan or Iqamah.
 
 ## Development
 

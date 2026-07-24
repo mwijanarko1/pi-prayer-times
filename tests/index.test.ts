@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   fetchPrayerStatus,
+  formatNextEventCountdown,
   formatPrayerStatus,
   getHighlightedPrayer,
   iqamahForDay,
@@ -43,6 +44,17 @@ test("formats Adhan-only and Adhan/Iqamah statuses", () => {
   expect(formatPrayerStatus(row, range, "adhan-iqamah")).toBe(
     "Fajr 03:46/04:00 · Dhuhr 13:12/13:30 · Asr 17:34/18:15 · Maghrib 21:30/21:30 · Isha 22:36/22:36",
   );
+});
+
+test("counts down to the next Adhan or Iqamah", () => {
+  const nextRow = { ...row, date: 16, fajr: "03:47" };
+
+  expect(formatNextEventCountdown(row, range, nextRow, range, new Date("2026-07-15T11:00:00Z"), "Europe/London"))
+    .toBe("Next: Dhuhr Adhan in 1h 12m");
+  expect(formatNextEventCountdown(row, range, nextRow, range, new Date("2026-07-15T12:20:00Z"), "Europe/London"))
+    .toBe("Next: Dhuhr Iqamah in 10m");
+  expect(formatNextEventCountdown(row, range, nextRow, range, new Date("2026-07-15T21:40:00Z"), "Europe/London"))
+    .toBe("Next: Fajr Adhan in 5h 7m");
 });
 
 test("matches MWHS iqamah-window prayer highlighting", () => {
